@@ -1,0 +1,127 @@
+# ============================================================================
+# Project-2: Prototypical Few-Shot Segmentation — Default Configuration
+# ============================================================================
+# All hyperparameters in one file for reproducibility.
+# Override via CLI: python train.py --config configs/default.yaml --lr 1e-3
+# ============================================================================
+
+# --- Paths ---
+data_root: "/home/rakib/data/tiger-group-256"
+vqvae_weights: "/home/rakib/PycharmProjects/PytorchProject/tiger_fsl_repo_cv_patient_protocol/model.safetensors"
+# Path to VQ-VAE modules (encoder, quantizer, etc.)
+vqvae_modules_path: "/home/rakib/PycharmProjects/PytorchProject/tiger_fsl_repo_cv_patient_protocol"
+output_dir: "./runs"
+
+# --- Dataset ---
+dataset:
+  fold: 0 # Cross-validation fold (0-3)
+  num_classes: 3 # 0=tumor, 1=stroma, 2=other
+  ignore_index: 255
+  img_size: 256 # Patch size (square)
+  min_labeled_frac: 0.9 # Minimum annotated fraction to include patch
+
+# --- Episode Configuration ---
+episode:
+  n_way: 3 # All 3 classes per episode (tumor, stroma, other)
+  k_shot: 5 # Support images per episode
+  train_episodes: 250 # Episodes per training epoch
+  val_episodes: 40 # Episodes per validation
+  test_episodes: 100 # Episodes for final test
+  min_pixels_per_class: 100 # Min pixels of ANY class required in support/query
+  patient_disjoint: true # Support/query from different patients
+
+# --- VQ-VAE Backbone ---
+backbone:
+  feature_dim: 256 # VQ-VAE feature dimension
+  codebook_size: 4096 # Number of codebook entries
+  spatial_reduction: 4 # 256 → 64 spatial downsampling
+  freeze: true # Keep VQ-VAE frozen
+
+# --- Feature Projector ---
+projector:
+  enabled: true
+  hidden_dim: 256
+  num_blocks: 2 # Residual blocks
+  norm_groups: 8 # GroupNorm groups
+  dropout: 0.1
+
+# --- Prototype Engine ---
+prototype:
+  method: "masked_avg" # "masked_avg" (MAP), "multi_scale"
+  multi_scale_grids: [1, 4] # Grid sizes for multi-scale
+  similarity: "cosine" # "cosine" or "learned"
+  temperature: 0.1 # Cosine similarity temperature (initial)
+  learnable_temp: true # Make temperature learnable
+
+# --- GPA (Guided Prototype Allocation) ---
+gpa:
+  assignment: "soft" # Always soft (never hard)
+  num_protos_per_class: 25 # Max prototypes per class
+  proto_select: "freq" # "freq" = frequency-based, "random"
+
+# --- Decoder ---
+decoder:
+  aspp_rates: [6, 12, 18]
+  use_attention: true
+  norm_groups: 8
+  dropout: 0.1
+
+# --- Loss ---
+loss:
+  ce_weight: 1.0
+  dice_weight: 0.5
+  focal_weight: 0.3
+  focal_gamma: 2.0
+  # Per-class focal weights: [tumor, stroma, other]
+  # Higher = more focus on that class during training
+  focal_class_weights: [1.0, 1.0, 1.0]
+
+# --- Training ---
+training:
+  epochs: 30
+  lr: 1.0e-3
+  weight_decay: 1.0e-5
+  optimizer: "adamw"
+  warmup_epochs: 5
+  warmup_factor: 0.1
+  scheduler: "cosine" # "cosine" or "step"
+  eta_min: 1.0e-6
+  grad_clip: 5.0
+  seed: 42
+  device: "cuda"
+  num_workers: 0
+
+# --- Evaluation ---
+evaluation:
+  eval_every: 1 # Evaluate every N epochs
+  best_metric: "val_mDice_soft" # Macro soft Dice over 3 classes
+  save_predictions: false
+
+# --- Augmentation ---
+augmentation:
+  train:
+    horizontal_flip: true
+    vertical_flip: true
+    random_rotate_90: true
+    color_jitter:
+      brightness: 0.3
+      contrast: 0.3
+      saturation: 0.2
+      hue: 0.05
+    elastic:
+      enabled: true
+      alpha: 50
+      sigma: 5
+      p: 0.3
+    gaussian_blur:
+      enabled: true
+      p: 0.2
+  val:
+    # No augmentation for validation — deterministic
+
+# --- Logging ---
+logging:
+  tensorboard: true
+  print_every: 10 # Steps between print
+  log_gradients: true
+  debug_shapes: false # Print tensor shapes through pipeline
